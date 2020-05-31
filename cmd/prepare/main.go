@@ -44,7 +44,7 @@ func run() error {
 		24:  "CAN",
 		25:  "EM",
 		26:  "SUB",
-		27:  "ESC",
+		27:  "Escape",
 		28:  "FS",
 		29:  "GS",
 		30:  "RS",
