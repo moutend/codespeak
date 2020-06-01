@@ -39,7 +39,7 @@ func process(ctx context.Context, ts []token.Token) error {
 			}
 			cmd = exec.CommandContext(ctx, "play", args...)
 		case token.Alphabet:
-			cmd = exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", t.Text))
+			cmd = exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+t.Text))
 		case token.Unicode:
 			cmd = exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", t.Text))
 		}
