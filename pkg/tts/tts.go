@@ -2,10 +2,10 @@ package tts
 
 import (
 	"context"
-	"math/rand"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -34,6 +34,8 @@ func process(ctx context.Context, ts []token.Token) error {
 		return err
 	}
 
+	var wg sync.WaitGroup
+
 	audioPaths := []string{}
 
 	for _, t := range ts {
@@ -50,13 +52,18 @@ func process(ctx context.Context, ts []token.Token) error {
 			}
 
 			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
-			cmd := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+t.Text), "-o", aiffPath)
-
-			if err := cmd.Run(); err != nil {
-				continue
-			}
-
 			audioPaths = append(audioPaths, aiffPath)
+			wg.Add(1)
+
+			go func(text, outputPath string) {
+				cmd := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+text), "-o", outputPath)
+
+				if err := cmd.Run(); err != nil {
+					return
+				}
+
+				wg.Done()
+			}(t.Text, aiffPath)
 		case token.Unicode:
 			hash := make([]byte, 16, 16)
 
@@ -65,15 +72,23 @@ func process(ctx context.Context, ts []token.Token) error {
 			}
 
 			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
-			cmd := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", t.Text), "-o", aiffPath)
-
-			if err := cmd.Run(); err != nil {
-				continue
-			}
-
 			audioPaths = append(audioPaths, aiffPath)
+			wg.Add(1)
+
+			go func(text, outputPath string) {
+				cmd := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", text), "-o", outputPath)
+
+				if err := cmd.Run(); err != nil {
+					return
+				}
+
+				wg.Done()
+			}(t.Text, aiffPath)
 		}
 	}
+
+	wg.Wait()
+
 	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
 		return err
 	}
