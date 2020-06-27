@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -28,14 +28,12 @@ type TTS struct {
 }
 
 func process(ctx context.Context, ts []token.Token) error {
-	tempPath, err := ioutil.TempDir("", "codespeak")
-
-	if err != nil {
-		return err
-	}
+	tempPath := filepath.Join(global.CodespeakAudioPath, "tmp")
+	os.MkdirAll(tempPath, 0755)
 
 	var wg sync.WaitGroup
 
+	removePaths := []string{}
 	audioPaths := []string{}
 
 	for _, t := range ts {
@@ -52,7 +50,9 @@ func process(ctx context.Context, ts []token.Token) error {
 			}
 
 			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
+			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			wg.Add(1)
 
 			go func(text, outputPath string) {
@@ -72,7 +72,9 @@ func process(ctx context.Context, ts []token.Token) error {
 			}
 
 			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
+			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			wg.Add(1)
 
 			go func(text, outputPath string) {
@@ -92,6 +94,13 @@ func process(ctx context.Context, ts []token.Token) error {
 	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
 		return err
 	}
+
+	defer func() {
+		for _, removePath := range removePaths {
+			os.Remove(removePath)
+		}
+	}()
+
 	return nil
 }
 
