@@ -2,16 +2,10 @@ package tts
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"log"
-	"math/rand"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/moutend/codespeak/pkg/global"
 	"github.com/moutend/codespeak/pkg/token"
@@ -29,132 +23,29 @@ type TTS struct {
 	}
 }
 
-func sayAlex(ctx context.Context, wg *sync.WaitGroup, text, outputPath string) {
-	defer wg.Done()
-
-	if err := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+text), "-o", outputPath).Run(); err != nil {
-		go log.Println("tts: failed to generate audio:", outputPath)
-
-		return
-	}
-
-	stat, err := os.Stat(outputPath)
-
-	if err != nil {
-		go log.Println("tts: failed to stat file:", outputPath)
-
-		os.Remove(outputPath)
-
-		return
-	}
-	if stat.Size() <= 4096 {
-		go log.Println("tts: generated file is broken:", outputPath)
-
-		os.Remove(outputPath)
-
-		return
-	}
-
-	return
-}
-func sayKyoko(ctx context.Context, wg *sync.WaitGroup, text, outputPath string) {
-	defer wg.Done()
-
-	if err := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", text), "-o", outputPath).Run(); err != nil {
-		go log.Println("tts: failed to generate audio:", outputPath)
-
-		return
-	}
-
-	stat, err := os.Stat(outputPath)
-
-	if err != nil {
-		go log.Println("tts: failed to stat file: ", outputPath)
-
-		os.Remove(outputPath)
-
-		return
-	}
-	if stat.Size() <= 4096 {
-		go log.Println("tts: generated file is broken:", outputPath)
-
-		os.Remove(outputPath)
-
-		return
-	}
-
-	return
-}
-
 func process(ctx context.Context, ts []token.Token) error {
-	tempPath := filepath.Join(global.CodespeakAudioPath, "tmp")
-	os.MkdirAll(tempPath, 0755)
-
-	var wg sync.WaitGroup
-
-	removePaths := []string{}
-	audioPaths := []string{}
+	var cmd *exec.Cmd
 
 	for _, t := range ts {
 		switch t.Kind {
 		case token.Number, token.Symbol:
+			args := []string{}
+
 			for _, r := range []rune(t.Text) {
-				audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, fmt.Sprintf("%03d.wav", r+1)))
+				args = append(args, filepath.Join(global.CodespeakAudioPath, fmt.Sprintf("%03d.wav", r+1)))
 			}
+			if len(args) == 0 {
+				continue
+			}
+			cmd = exec.CommandContext(ctx, "play", args...)
 		case token.Alphabet:
-			hash := make([]byte, 16, 16)
-
-			if _, err := rand.Read(hash); err != nil {
-				continue
-			}
-
-			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s_voice.aiff", hex.EncodeToString(hash)))
-			removePaths = append(removePaths, aiffPath)
-			audioPaths = append(audioPaths, aiffPath)
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-
-			wg.Add(1)
-
-			go sayAlex(ctx, &wg, t.Text, aiffPath)
+			cmd = exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+t.Text))
 		case token.Unicode:
-			hash := make([]byte, 16, 16)
-
-			if _, err := rand.Read(hash); err != nil {
-				continue
-			}
-
-			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s_voice.aiff", hex.EncodeToString(hash)))
-			removePaths = append(removePaths, aiffPath)
-			audioPaths = append(audioPaths, aiffPath)
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-
-			wg.Add(1)
-
-			go sayKyoko(ctx, &wg, t.Text, aiffPath)
+			cmd = exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", t.Text))
 		}
-	}
-
-	wg.Wait()
-
-	defer func() {
-		for _, removePath := range removePaths {
-			os.Remove(removePath)
+		if err := cmd.Run(); err != nil {
+			return err
 		}
-	}()
-	for i, audioPath := range audioPaths {
-		if !strings.HasSuffix(audioPath, "_voice.aiff") {
-			continue
-		}
-		if _, err := os.Stat(audioPath); err != nil {
-			audioPaths = append(audioPaths[:i], audioPaths[i+1:]...)
-		}
-	}
-	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
-		return err
 	}
 
 	return nil
@@ -232,8 +123,4 @@ func Open() *TTS {
 	}()
 
 	return t
-}
-
-func init() {
-	rand.Seed(time.Now().Unix())
 }
