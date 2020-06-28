@@ -33,6 +33,7 @@ func process(ctx context.Context, ts []token.Token) error {
 
 	var wg sync.WaitGroup
 
+	maxWait := 5
 	removePaths := []string{}
 	audioPaths := []string{}
 
@@ -53,17 +54,23 @@ func process(ctx context.Context, ts []token.Token) error {
 			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			wg.Add(1)
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 
-			go func(text, outputPath string) {
+			if len(removePaths) < maxWait {
+				wg.Add(1)
+			}
+			go func(shouldWait bool, text, outputPath string) {
 				cmd := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+text), "-o", outputPath)
 
 				if err := cmd.Run(); err != nil {
 					return
 				}
 
-				wg.Done()
-			}(t.Text, aiffPath)
+				if shouldWait {
+					wg.Done()
+				}
+			}(len(removePaths) < maxWait, t.Text, aiffPath)
 		case token.Unicode:
 			hash := make([]byte, 16, 16)
 
@@ -75,17 +82,23 @@ func process(ctx context.Context, ts []token.Token) error {
 			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
-			wg.Add(1)
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
+			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 
-			go func(text, outputPath string) {
+			if len(removePaths) < maxWait {
+				wg.Add(1)
+			}
+			go func(shouldWait bool, text, outputPath string) {
 				cmd := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", text), "-o", outputPath)
 
 				if err := cmd.Run(); err != nil {
 					return
 				}
 
-				wg.Done()
-			}(t.Text, aiffPath)
+				if shouldWait {
+					wg.Done()
+				}
+			}(len(removePaths) < maxWait, t.Text, aiffPath)
 		}
 	}
 
