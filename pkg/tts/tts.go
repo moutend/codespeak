@@ -104,15 +104,15 @@ func process(ctx context.Context, ts []token.Token) error {
 
 	wg.Wait()
 
-	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
-		return err
-	}
-
 	defer func() {
 		for _, removePath := range removePaths {
 			os.Remove(removePath)
 		}
 	}()
+
+	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
+		return err
+	}
 
 	return nil
 }
