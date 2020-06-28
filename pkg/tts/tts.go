@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,13 +29,69 @@ type TTS struct {
 	}
 }
 
+func sayAlex(ctx context.Context, wg *sync.WaitGroup, text, outputPath string) {
+	defer wg.Done()
+
+	if err := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+text), "-o", outputPath).Run(); err != nil {
+		go log.Println("tts: failed to generate audio:", outputPath)
+
+		return
+	}
+
+	stat, err := os.Stat(outputPath)
+
+	if err != nil {
+		go log.Println("tts: failed to stat file:", outputPath)
+
+		os.Remove(outputPath)
+
+		return
+	}
+	if stat.Size() <= 4096 {
+		go log.Println("tts: generated file is broken:", outputPath)
+
+		os.Remove(outputPath)
+
+		return
+	}
+
+	return
+}
+func sayKyoko(ctx context.Context, wg *sync.WaitGroup, text, outputPath string) {
+	defer wg.Done()
+
+	if err := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", text), "-o", outputPath).Run(); err != nil {
+		go log.Println("tts: failed to generate audio:", outputPath)
+
+		return
+	}
+
+	stat, err := os.Stat(outputPath)
+
+	if err != nil {
+		go log.Println("tts: failed to stat file: ", outputPath)
+
+		os.Remove(outputPath)
+
+		return
+	}
+	if stat.Size() <= 4096 {
+		go log.Println("tts: generated file is broken:", outputPath)
+
+		os.Remove(outputPath)
+
+		return
+	}
+
+	return
+}
+
 func process(ctx context.Context, ts []token.Token) error {
 	tempPath := filepath.Join(global.CodespeakAudioPath, "tmp")
 	os.MkdirAll(tempPath, 0755)
 
 	var wg sync.WaitGroup
 
-	maxWait := 5
 	removePaths := []string{}
 	audioPaths := []string{}
 
@@ -50,27 +108,16 @@ func process(ctx context.Context, ts []token.Token) error {
 				continue
 			}
 
-			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
+			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s_voice.aiff", hex.EncodeToString(hash)))
 			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 
-			if len(removePaths) < maxWait {
-				wg.Add(1)
-			}
-			go func(shouldWait bool, text, outputPath string) {
-				cmd := exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", "[[ pbas 42 ]]"+text), "-o", outputPath)
+			wg.Add(1)
 
-				if err := cmd.Run(); err != nil {
-					return
-				}
-
-				if shouldWait {
-					wg.Done()
-				}
-			}(len(removePaths) < maxWait, t.Text, aiffPath)
+			go sayAlex(ctx, &wg, t.Text, aiffPath)
 		case token.Unicode:
 			hash := make([]byte, 16, 16)
 
@@ -78,27 +125,16 @@ func process(ctx context.Context, ts []token.Token) error {
 				continue
 			}
 
-			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s.aiff", hex.EncodeToString(hash)))
+			aiffPath := filepath.Join(tempPath, fmt.Sprintf("%s_voice.aiff", hex.EncodeToString(hash)))
 			removePaths = append(removePaths, aiffPath)
 			audioPaths = append(audioPaths, aiffPath)
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 			audioPaths = append(audioPaths, filepath.Join(global.CodespeakAudioPath, `mute.wav`))
 
-			if len(removePaths) < maxWait {
-				wg.Add(1)
-			}
-			go func(shouldWait bool, text, outputPath string) {
-				cmd := exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", text), "-o", outputPath)
+			wg.Add(1)
 
-				if err := cmd.Run(); err != nil {
-					return
-				}
-
-				if shouldWait {
-					wg.Done()
-				}
-			}(len(removePaths) < maxWait, t.Text, aiffPath)
+			go sayKyoko(ctx, &wg, t.Text, aiffPath)
 		}
 	}
 
@@ -109,7 +145,14 @@ func process(ctx context.Context, ts []token.Token) error {
 			os.Remove(removePath)
 		}
 	}()
-
+	for i, audioPath := range audioPaths {
+		if !strings.HasSuffix(audioPath, "_voice.aiff") {
+			continue
+		}
+		if _, err := os.Stat(audioPath); err != nil {
+			audioPaths = append(audioPaths[:i], audioPaths[i+1:]...)
+		}
+	}
 	if err := exec.CommandContext(ctx, "play", audioPaths...).Run(); err != nil {
 		return err
 	}
