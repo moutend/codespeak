@@ -64,10 +64,10 @@ func (a *App) speakHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.engine.Speak(context.Background(), tokens)
+	a.engine.Speak(context.Background(), tokens, a.processOption)
 }
 
 func (a *App) pauseHandler(w http.ResponseWriter, r *http.Request) {
 	a.debug.Println("Called /v1/pause")
-	a.engine.Pause()
+	a.engine.Pause(a.processOption)
 }

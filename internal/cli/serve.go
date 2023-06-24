@@ -38,6 +38,16 @@ func serveCommandRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	englishVoice, _ := cmd.Flags().GetString("english-voice")
+	englishRate, _ := cmd.Flags().GetInt("english-rate")
+	japaneseVoice, _ := cmd.Flags().GetString("japanese-voice")
+	japaneseRate, _ := cmd.Flags().GetInt("japanese-rate")
+
+	a.SetEnglishVoice(englishVoice)
+	a.SetEnglishRate(englishRate)
+	a.SetJapaneseVoice(japaneseVoice)
+	a.SetJapaneseRate(japaneseRate)
+
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
@@ -61,4 +71,8 @@ func init() {
 
 	serveCommand.PersistentFlags().StringP("host", "", "localhost", "host name")
 	serveCommand.PersistentFlags().IntP("port", "", 8501, "port")
+	serveCommand.PersistentFlags().StringP("english-voice", "e", "Alex", "English voice")
+	serveCommand.PersistentFlags().StringP("japanese-voice", "j", "Kyoko", "Japanese voice")
+	serveCommand.PersistentFlags().IntP("english-rate", "", 280, "English rate")
+	serveCommand.PersistentFlags().IntP("japanese-rate", "", 480, "Japanese rate")
 }

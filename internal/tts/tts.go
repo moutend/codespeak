@@ -12,12 +12,21 @@ import (
 )
 
 type ProcessOption struct {
-	Debug    *log.Logger
-	AudioDir string
+	Debug         *log.Logger
+	AudioDir      string
+	EnglishVoice  string
+	EnglishRate   int
+	JapaneseVoice string
+	JapaneseRate  int
 }
 
 func Process(ctx context.Context, ts []token.Token, option ProcessOption) error {
 	var cmd *exec.Cmd
+
+	englishVoice := option.EnglishVoice
+	englishRate := fmt.Sprint(option.EnglishRate)
+	japaneseVoice := option.JapaneseVoice
+	japaneseRate := fmt.Sprint(option.JapaneseRate)
 
 	for _, t := range ts {
 		switch t.Kind {
@@ -33,9 +42,9 @@ func Process(ctx context.Context, ts []token.Token, option ProcessOption) error 
 
 			cmd = exec.CommandContext(ctx, "play", args...)
 		case token.Alphabet:
-			cmd = exec.CommandContext(ctx, "say", "-v", "Alex", "-r", "272", fmt.Sprintf("%q", t.Text))
+			cmd = exec.CommandContext(ctx, "say", "-v", englishVoice, "-r", englishRate, fmt.Sprintf("%q", t.Text))
 		case token.Unicode:
-			cmd = exec.CommandContext(ctx, "say", "-v", "Kyoko", "-r", "480", fmt.Sprintf("%q", t.Text))
+			cmd = exec.CommandContext(ctx, "say", "-v", japaneseVoice, "-r", japaneseRate, fmt.Sprintf("%q", t.Text))
 		}
 
 		go option.Debug.Println("Processing:", cmd.String())
@@ -49,13 +58,12 @@ func Process(ctx context.Context, ts []token.Token, option ProcessOption) error 
 }
 
 type Engine struct {
-	ProcessOption     ProcessOption
 	cancelFuncCounter int
 	cancelFuncMap     map[int]context.CancelFunc
 	cancelFuncMutex   sync.Mutex
 }
 
-func (e *Engine) Speak(ctx context.Context, tokens []token.Token) {
+func (e *Engine) Speak(ctx context.Context, tokens []token.Token, option ProcessOption) {
 	e.cancelFuncMutex.Lock()
 	defer e.cancelFuncMutex.Unlock()
 
@@ -72,11 +80,11 @@ func (e *Engine) Speak(ctx context.Context, tokens []token.Token) {
 	e.cancelFuncCounter += 1
 	e.cancelFuncMap[e.cancelFuncCounter] = cancel
 
-	go e.ProcessOption.Debug.Println("Speak function invoked:", e.cancelFuncCounter)
-	go Process(ctx, tokens, e.ProcessOption)
+	go option.Debug.Println("Speak function invoked:", e.cancelFuncCounter)
+	go Process(ctx, tokens, option)
 }
 
-func (e *Engine) Pause() {
+func (e *Engine) Pause(option ProcessOption) {
 	e.cancelFuncMutex.Lock()
 	defer e.cancelFuncMutex.Unlock()
 
@@ -88,15 +96,14 @@ func (e *Engine) Pause() {
 		delete(e.cancelFuncMap, k)
 	}
 
-	go e.ProcessOption.Debug.Println("Pause function invoked:", e.cancelFuncCounter)
+	go option.Debug.Println("Pause function invoked:", e.cancelFuncCounter)
 }
 
 func (e *Engine) Close() {
 }
 
-func NewEngine(option ProcessOption) *Engine {
+func NewEngine() *Engine {
 	return &Engine{
 		cancelFuncMap: map[int]context.CancelFunc{},
-		ProcessOption: option,
 	}
 }

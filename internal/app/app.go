@@ -16,6 +16,7 @@ type App struct {
 	inputFilePath string
 	engine        *tts.Engine
 	server        *http.Server
+	processOption tts.ProcessOption
 	debug         *log.Logger
 }
 
@@ -32,13 +33,14 @@ func New() (*App, error) {
 
 	a := &App{
 		HomeDir:       homeDir,
-		inputFilePath: inputFilePath,
 		audioDir:      audioDir,
-		engine: tts.NewEngine(tts.ProcessOption{
-			Debug:    log.New(io.Discard, "", 0),
+		inputFilePath: inputFilePath,
+		debug:         log.New(io.Discard, "", 0),
+		engine:        tts.NewEngine(),
+		processOption: tts.ProcessOption{
 			AudioDir: audioDir,
-		}),
-		debug: log.New(io.Discard, "", 0),
+			Debug:    log.New(io.Discard, "", 0),
+		},
 	}
 
 	return a, nil
@@ -48,8 +50,23 @@ func (a *App) SetDebug(logger *log.Logger) {
 	if logger == nil {
 		return
 	}
-	if a.engine != nil {
-		a.engine.ProcessOption.Debug = logger
-	}
+
 	a.debug = logger
+	a.processOption.Debug = logger
+}
+
+func (a *App) SetEnglishVoice(s string) {
+	a.processOption.EnglishVoice = s
+}
+
+func (a *App) SetEnglishRate(i int) {
+	a.processOption.EnglishRate = i
+}
+
+func (a *App) SetJapaneseVoice(s string) {
+	a.processOption.JapaneseVoice = s
+}
+
+func (a *App) SetJapaneseRate(i int) {
+	a.processOption.JapaneseRate = i
 }

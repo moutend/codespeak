@@ -13,12 +13,7 @@ func (a *App) Process(ctx context.Context, input string) error {
 	if err != nil {
 		return err
 	}
-
-	option := tts.ProcessOption{
-		AudioDir: a.audioDir,
-	}
-
-	if err := tts.Process(ctx, tokens, option); err != nil {
+	if err := tts.Process(ctx, tokens, a.processOption); err != nil {
 		return err
 	}
 
